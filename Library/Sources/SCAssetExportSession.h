@@ -74,7 +74,9 @@
 /**
  Starts the asynchronous execution of the export session
  */
-- (void)exportAsynchronouslyWithCompletionHandler:(void(^)())completionHandler;
+- (void)exportAsynchronouslyWithCompletionHandler:(void(^)(BOOL finished))completionHandler;
+
+- (void)cancel;
 
 
 //////////////////

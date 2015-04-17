@@ -10,7 +10,7 @@
 #import "SCAssetExportSession.h"
 #import "SCRecorderTools.h"
 
-#define EnsureSuccess(error, x) if (error != nil) { _error = error; if (x != nil) x(); return; }
+#define EnsureSuccess(error, finished, x) if (error != nil) { _error = error; if (x != nil) x(finished); return; }
 #define kVideoPixelFormatTypeForCI kCVPixelFormatType_32BGRA
 #define kVideoPixelFormatTypeDefault kCVPixelFormatType_422YpCbCr8
 #define kAudioFormatType kAudioFormatLinearPCM
@@ -31,6 +31,7 @@
     BOOL _animationsWereEnabled;
     uint32_t _pixelFormat;
     CMTime _nextAllowedVideoFrame;
+	BOOL _finished; // Not canceled
 }
 
 @end
@@ -47,6 +48,7 @@
         _audioConfiguration = [SCAudioConfiguration new];
         _videoConfiguration = [SCVideoConfiguration new];
         _timeRange = CMTimeRangeMake(kCMTimeZero, kCMTimePositiveInfinity);
+		_finished = YES;
     }
     
     return self;
@@ -173,10 +175,10 @@
     }
 }
 
-- (void)callCompletionHandler:(void (^)())completionHandler {
+- (void)callCompletionHandler:(void (^)(BOOL finished))completionHandler {
     if (completionHandler != nil) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            completionHandler();
+            completionHandler(_finished);
         });
     }
 }
@@ -290,7 +292,7 @@
     return nil;
 }
 
-- (void)exportAsynchronouslyWithCompletionHandler:(void (^)())completionHandler {
+- (void)exportAsynchronouslyWithCompletionHandler:(void(^)(BOOL finished))completionHandler {
     _nextAllowedVideoFrame = kCMTimeZero;
     NSError *error = nil;
     
@@ -299,11 +301,11 @@
     _writer = [AVAssetWriter assetWriterWithURL:self.outputUrl fileType:self.outputFileType error:&error];
     _writer.metadata = [SCRecorderTools assetWriterMetadata];
 
-    EnsureSuccess(error, completionHandler);
+    EnsureSuccess(error, NO, completionHandler);
     
     _reader = [AVAssetReader assetReaderWithAsset:self.inputAsset error:&error];
     _reader.timeRange = _timeRange;
-    EnsureSuccess(error, completionHandler);
+    EnsureSuccess(error, NO, completionHandler);
     
     NSArray *audioTracks = [self.inputAsset tracksWithMediaType:AVMediaTypeAudio];
     if (audioTracks.count > 0 && self.audioConfiguration.enabled && !self.audioConfiguration.shouldIgnore) {
@@ -388,17 +390,17 @@
         _videoOutput = nil;
     }
     
-    EnsureSuccess(error, completionHandler);
+    EnsureSuccess(error, NO, completionHandler);
     
     [self setupCoreImage:videoTrack];
     [self setupPixelBufferAdaptor:outputBufferSize];
     
     if (![_reader startReading]) {
-        EnsureSuccess(_reader.error, completionHandler);
+        EnsureSuccess(_reader.error, NO, completionHandler);
     }
     
     if (![_writer startWriting]) {
-        EnsureSuccess(_writer.error, completionHandler);
+        EnsureSuccess(_writer.error, NO, completionHandler);
     }
     
     [_writer startSessionAtSourceTime:kCMTimeZero];
@@ -421,6 +423,52 @@
         }
     });
 }
+
+- (void)cancel
+{
+	// Handle cancellation asynchronously, but serialize it with the main queue.
+	dispatch_async(_dispatchQueue, ^{
+		// If we had audio data to reencode, we need to cancel the audio work.
+		if (_audioOutput)
+		{
+			// Handle cancellation asynchronously again, but this time serialize it with the audio queue.
+			dispatch_async(_dispatchQueue, ^{
+				// Update the Boolean property indicating the task is complete and mark the input as finished if it hasn't already been marked as such.
+				//BOOL oldFinished = self.audioFinished;
+				//self.audioFinished = YES;
+				//if (oldFinished == NO)
+				//{
+				[self markInputComplete:_audioInput error:nil];
+				//}
+				// Leave the dispatch group, since the audio work is finished now.
+				dispatch_group_leave(_dispatchGroup);
+			});
+		}
+		
+		if (_videoOutput)
+		{
+			// Handle cancellation asynchronously again, but this time serialize it with the video queue.
+			dispatch_async(_dispatchQueue, ^{
+				// Update the Boolean property indicating the task is complete and mark the input as finished if it hasn't already been marked as such.
+				//BOOL oldFinished = self.videoFinished;
+				//self.videoFinished = YES;
+				//if (oldFinished == NO)
+				//{
+				[self markInputComplete:_videoInput error:nil];
+				//}
+				// Leave the dispatch group, since the video work is finished now.
+				dispatch_group_leave(_dispatchGroup);
+				
+			});
+		}
+		
+
+		
+		// Set the cancelled Boolean property to YES to cancel any work on the main queue as well.
+		_finished = NO;
+	});
+}
+
 
 - (NSError *)error {
     return _error;
