@@ -141,6 +141,11 @@ extern const NSString *SCRecordSessionCacheDirectory;
 - (void)removeSegmentAtIndex:(NSInteger)segmentIndex deleteFile:(BOOL)deleteFile;
 
 /**
+ Switch segment indexes.
+ */
+- (void)switchSegmentAtIndex:(NSInteger)atIndex withIndex:(NSInteger)withIndex;
+
+/**
  Add a recorded segment.
  */
 - (void)addSegment:(SCRecordSessionSegment *)segment;

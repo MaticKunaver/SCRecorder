@@ -186,6 +186,12 @@ NSString *SCRecordSessionCacheDirectory = @"CacheDirectory";
     }];
 }
 
+- (void)switchSegmentAtIndex:(NSInteger)atIndex withIndex:(NSInteger)withIndex {
+	[self dispatchSyncOnSessionQueue:^{
+		[_segments exchangeObjectAtIndex:atIndex withObjectAtIndex:withIndex];
+	}];
+}
+
 - (void)removeLastSegment {
     [self dispatchSyncOnSessionQueue:^{
         if (_segments.count > 0) {
