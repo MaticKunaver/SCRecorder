@@ -1,8 +1,9 @@
 SCRecorder
 ===============
 
-<img src="filters.gif" width="256" height="454" />
-<img src="screenshot_2.png" width="256" height="454" />
+<img src="filters.gif" width="230" height="408" />
+<img src="screenshot_2.png" width="230" height="408" />
+<img src="animated_filters.gif" width="230" height="408" />
 
 A Vine/Instagram like audio/video recorder and filter framework in Objective-C.
 
@@ -12,8 +13,8 @@ In short, here is a short list of the cool things you can do:
 - Remove any record segment that you don't want
 - Display the result into a convenient video player
 - Save the record session for later somewhere using a serializable NSDictionary (works in NSUserDefaults)
-- Add a video filter using Core Image
-- Add a watermark
+- Add a configurable and animatable video filter using Core Image
+- Add a UIView as overlay, so you can render anything you want on top of your video
 - Merge and export the video using fine tunings that you choose
 
 
@@ -32,8 +33,8 @@ Podfile
 If you are using cocoapods, you can use this project with the following Podfile
 
 ```ruby
-	platform :ios, '7.0'
-	pod 'SCRecorder'
+platform :ios, '7.0'
+pod 'SCRecorder'
 ```
 
 Manual install
@@ -46,7 +47,7 @@ Swift
 
 For using the project in Swift, follow either the Podfile or Manual install instructions (they both work on Swift too). Then, to allow SCRecorder to be accessible from Swift, just add the following line in your bridge header:
 ```objective-c
-	#import <SCRecorder/SCRecorder.h>
+#import <SCRecorder/SCRecorder.h>
 ```
 
 Easy and quick
@@ -140,51 +141,51 @@ SCRecorder provides two easy classes to play a video/audio asset: [SCPlayer](Lib
 SCPlayer is a subclass of AVPlayer that adds some methods to make it easier to use. Plus, it also adds the ability to use a filter renderer, to apply a live filter on a video. 
 
 ```objective-c
-	SCRecordSession *recordSession = ... // Some instance of a record session
+SCRecordSession *recordSession = ... // Some instance of a record session
 	
-	// Create an instance of SCPlayer
-	SCPlayer *player = [SCPlayer player];
+// Create an instance of SCPlayer
+SCPlayer *player = [SCPlayer player];
 	
-	// Set the current playerItem using an asset representing the segments
-	// of an SCRecordSession
-	[player setItemByAsset:recordSession.assetRepresentingSegments];
+// Set the current playerItem using an asset representing the segments
+// of an SCRecordSession
+[player setItemByAsset:recordSession.assetRepresentingSegments];
 	
-	UIView *view = ... // Some view that will get the video
+UIView *view = ... // Some view that will get the video
 	
-	// Create and add an AVPlayerLayer
-	AVPlayerLayer *playerLayer = [AVPlayerLayer playerLayerWithPlayer:player];
-	playerLayer.frame = view.bounds;
-	[view.layer.addSublayer:playerLayer];
+// Create and add an AVPlayerLayer
+AVPlayerLayer *playerLayer = [AVPlayerLayer playerLayerWithPlayer:player];
+playerLayer.frame = view.bounds;
+[view.layer.addSublayer:playerLayer];
 	
-	// Start playing the asset and render it into the view
-	[player play];
+// Start playing the asset and render it into the view
+[player play];
 	
-	// Render the video directly through a filter
-	SCImageView *SCImageView = [[SCImageView alloc] initWithFrame:view.bounds];
-	SCImageView.filter = [SCFilter filterWithCIFilterName:@"CIPhotoEffectInstant"];
+// Render the video directly through a filter
+SCImageView *SCImageView = [[SCImageView alloc] initWithFrame:view.bounds];
+SCImageView.filter = [SCFilter filterWithCIFilterName:@"CIPhotoEffectInstant"];
 	
-	player.CIImageRenderer = SCImageView;
+player.CIImageRenderer = SCImageView;
 	
-	[view addSubview:SCImageView];
+[view addSubview:SCImageView];
 ```
 
 SCVideoPlayerView is a subclass of UIView that holds an SCPlayer. The video buffers are rendered directly in this view. It removes the need to handle the creation of an AVPlayerLayer and makes it really easy to play a video in your app.
 
 ```objective-c
-	SCRecordSession *recordSession = ... // Some instance of a record session
+SCRecordSession *recordSession = ... // Some instance of a record session
 	
-	SCVideoPlayerView *playerView = // Your instance somewhere
+SCVideoPlayerView *playerView = // Your instance somewhere
 	
-	// Set the current playerItem using an asset representing the segments
-	// of an SCRecordSession
-	[playerView.player setItemByAsset:recordSession.assetRepresentingSegments];
+// Set the current playerItem using an asset representing the segments
+// of an SCRecordSession
+[playerView.player setItemByAsset:recordSession.assetRepresentingSegments];
 	
-	// Start playing the asset and render it into the view
-	[playerView.player play];
+// Start playing the asset and render it into the view
+[playerView.player play];
 	
-	// Render the video directly through a filter
-	playerView.SCImageViewEnabled = YES;
-	playerView.SCImageView.filter = [SCFilter filterWithCIFilterName:@"CIPhotoEffectInstant"];
+// Render the video directly through a filter
+playerView.SCImageViewEnabled = YES;
+playerView.SCImageView.filter = [SCFilter filterWithCIFilterName:@"CIPhotoEffectInstant"];
 ```
 
 Editing your recording
@@ -307,6 +308,24 @@ SCFilter can be either used in a view to render a filtered image in real time, o
 - [SCImageView](Library/Sources/SCImageView.h) (live rendering)
 - [SCSwipeableFilterView](Library/Sources/SCSwipeableFilterView.h) (live rendering)
 
+Animating the filters
+----------------------
+
+Parameters of SCFilter can be animated. You can for instance, progressively blur your video. To do so, you need to add an animation within an SCFilter. Animations are represented as SCFilterAnimation which is a model object that represents a ramp from a start value to an end value and start applying at a given time and duration.
+
+Some examples:
+
+```objective-c
+// Fade from completely blurred to sharp at the beginning of the video
+SCFilter *blurFadeFilter = [SCFilter filterWithCIFilterName:@"CIFilterGaussianBlur"];
+[blurFadeFilter addAnimationForPameterKey:kCIInputRadiusKey startValue:@100 endValue:@0 startTime:0 duration:0.5];
+
+// Make the video instantly become black and white at 2 seconds for 1 second
+SCFilter *blackAndWhite = [SCFilter filterWithCIFilterName:@"CIColorControls"];
+[blackAndWhite addAnimationForParameterKey:kCIInputSaturationKey startValue:@1 endValue:@1 startTime:0 duration:2];
+[blackAndWhite addAnimationForParameterKey:kCIInputSaturationKey startValue:@0 endValue:@0 startTime:2 duration:1];
+[blackAndWhite addAnimationForParameterKey:kCIInputSaturationKey startValue:@1 endValue:@1 startTime:3 duration:1];
+```
 
 Some details about the other provided classes
 ---------------------

@@ -31,6 +31,7 @@
 }
 
 @property (strong, nonatomic) SCRecorderToolsView *focusView;
+
 @end
 
 ////////////////////////////////////////////////////////////
@@ -51,6 +52,10 @@
 
 #pragma mark - Left cycle
 
+- (void)dealloc {
+    _recorder.previewView = nil;
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.capturePhotoButton.alpha = 0.0;
@@ -65,7 +70,8 @@
 
     _recorder = [SCRecorder recorder];
     _recorder.captureSessionPreset = [SCRecorderTools bestCaptureSessionPresetCompatibleWithAllDevices];
-    _recorder.maxRecordDuration = CMTimeMake(10, 1);
+//    _recorder.maxRecordDuration = CMTimeMake(10, 1);
+//    _recorder.fastRecordMethodEnabled = YES;
     
     _recorder.delegate = self;
     _recorder.autoSetVideoOrientation = YES;
@@ -81,6 +87,7 @@
     self.loadingView.hidden = YES;
     
     self.focusView = [[SCRecorderToolsView alloc] initWithFrame:previewView.bounds];
+    self.focusView.autoresizingMask = UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleWidth;
     self.focusView.recorder = _recorder;
     [previewView addSubview:self.focusView];
     
@@ -299,6 +306,7 @@
 }
 
 - (void)recorder:(SCRecorder *)recorder didCompleteSession:(SCRecordSession *)recordSession {
+    NSLog(@"didCompleteSession:");
     [self saveAndShowSession:recordSession];
 }
 
@@ -334,7 +342,7 @@
         currentTime = _recorder.session.duration;
     }
     
-    self.timeRecordedLabel.text = [NSString stringWithFormat:@"Recorded - %.2f sec", CMTimeGetSeconds(currentTime)];
+    self.timeRecordedLabel.text = [NSString stringWithFormat:@"%.2f sec", CMTimeGetSeconds(currentTime)];
 }
 
 - (void)recorder:(SCRecorder *)recorder didAppendVideoSampleBufferInSession:(SCRecordSession *)recordSession {
@@ -376,11 +384,37 @@
     _ghostImageView.hidden = !_ghostModeButton.selected;
 }
 
+- (BOOL)prefersStatusBarHidden {
+    return YES;
+}
+
 - (IBAction)switchGhostMode:(id)sender {
     _ghostModeButton.selected = !_ghostModeButton.selected;
     _ghostImageView.hidden = !_ghostModeButton.selected;
     
     [self updateGhostImage];
+}
+- (IBAction)toolsButtonTapped:(UIButton *)sender {
+    CGRect toolsFrame = self.toolsContainerView.frame;
+    CGRect openToolsButtonFrame = self.openToolsButton.frame;
+    
+    if (toolsFrame.origin.y < 0) {
+        sender.selected = YES;
+        toolsFrame.origin.y = 0;
+        openToolsButtonFrame.origin.y = toolsFrame.size.height + 15;
+    } else {
+        sender.selected = NO;
+        toolsFrame.origin.y = -toolsFrame.size.height;
+        openToolsButtonFrame.origin.y = 15;
+    }
+    
+    [UIView animateWithDuration:0.15 animations:^{
+        self.toolsContainerView.frame = toolsFrame;
+        self.openToolsButton.frame = openToolsButtonFrame;
+    }];
+}
+- (IBAction)closeCameraTapped:(id)sender {
+    [self.navigationController popViewControllerAnimated:YES];
 }
 
 @end
